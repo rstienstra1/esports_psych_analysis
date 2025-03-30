@@ -58,4 +58,12 @@ print(conf_matrix)
 
 # visualizations ----------------------------------------------------------
 
+summary_data <- r6_data %>%
+  group_by(early_win_indicator) %>%
+  summarize(total_wins = sum(match_win)) %>%
+  ungroup()
+
+ggplot(summary_data, aes(x = factor(early_win_indicator), y = total_wins, fill = factor(early_win_indicator))) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(title = "Total Wins achieved by Teams with or without Early Wins", x = "Early Win Indicator", y = "Total Wins", fill = "Early Win Indicator")
 

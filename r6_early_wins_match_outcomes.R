@@ -1,8 +1,8 @@
 # Rachel Stienstra
-# ISTA 498 - Senior Capstone
-# March 30, 2025
+# ISTA 498 Senior Capstone
+# April 3, 2025
 
-# imports -----------------------------------------------------------------
+# libraries -----------------------------------------------------------------
 
 library(tidyverse)
 library(dplyr)
@@ -10,60 +10,102 @@ library(caret)
 library(randomForest)
 library(ggplot2)
 library(readr)
+library(yardstick)
+library(broom)
 set.seed(1999)
+options(scipen=999)
+
+
+
+
 
 # data load + clean --------------------------------------------------------------
 
+# Constructs the URL for the Google sheet that contains the R6 data
 sheet_id <- "1JWk84PgKI_DNqgl8ncdx8_KJpBi7l7ZuoHrCutoBnGc"
 gid <- "716521061"
 url <- paste0("https://docs.google.com/spreadsheets/d/", sheet_id, "/export?format=csv&gid=", gid)
 
-r6 <- read_csv(url) 
+r6 <- read_csv(url) # construct data frame
 
 r6 <- r6 %>%
-  rename_all(tolower)
+  rename_all(tolower) # make all column names lowercase
+
+
+
+
 
 # wrangling ---------------------------------------------------------------
 
+# Make new columns indicating if team a won the match and if they had more early round wins
 r6_data <- r6 %>%
   mutate(match_win = ifelse(winner == team_a, 1, 0),
          early_win_indicator = ifelse(early_rounds_won_a > early_rounds_won_b, 1, 0))
-# If team_a has more early rounds won AND won the match, early_win_indicator will equal 1
+
+
+
 
 
 # train and test split ----------------------------------------------------
 
+# Split R6 data into training 80% and testing 20% sets based on match win (the target)
 train_index <- createDataPartition(r6_data$match_win, p = 0.8, list = FALSE)
 train_data <- r6_data[train_index, ]
 test_data <- r6_data[-train_index, ]
+
+
+
+
 
 # model -------------------------------------------------------------------
 
 # Fit the logistic regression model
 log_model <- glm(match_win ~ early_win_indicator, family = "binomial", data = train_data)
 
-# Check the model summary
+# Check the model summary - p value less than 0.05
 summary(log_model)
 
 
-# predictions -------------------------------------------------------------
 
+
+
+# predictions + evaluation -------------------------------------------------------------
+
+# Generate predictions using the logistic regression model on the test data
 predictions <- predict(log_model, newdata = test_data, type = "response")
+# Convert predicted probabilities into 1 for win, 0 for loss
 predicted_class <- ifelse(predictions >= 0.5, 1, 0)
 
-# confusion matrix
+# Confusion Matrix to compare predictions vs actual
 conf_matrix <- table(predicted_class, test_data$match_win)
 print(conf_matrix)
 
 
+
+
+# Added model performance metrics with yardstick
+# Convert estimate and truth to factor
+test_results <- test_data %>%
+  mutate(predicted = factor(predicted_class),
+         match_win = factor(match_win))  # Convert match_win to factor
+# Calculate accuracy based on actual results and predictions
+accuracy_score <- accuracy(test_results, truth = match_win, estimate = predicted)
+# Print accuracy score
+print(accuracy_score)
+
+
+
+# Calculate odds ratio for r6
+tidy(log_model, exponentiate = TRUE, conf.int = TRUE)
+
+
+
+
+
 # visualizations ----------------------------------------------------------
 
-summary_data <- r6_data %>%
-  group_by(early_win_indicator) %>%
-  summarize(total_wins = sum(match_win)) %>%
-  ungroup()
-
-ggplot(summary_data, aes(x = factor(early_win_indicator), y = total_wins, fill = factor(early_win_indicator))) +
-  geom_bar(stat = "identity", position = "dodge") +
-  labs(title = "Total Wins achieved by Teams with or without Early Wins", x = "Early Win Indicator", y = "Total Wins", fill = "Early Win Indicator")
-
+# Plot distribution of win rates based on early win indicator
+r6_data %>%
+  ggplot(aes(x = factor(early_win_indicator), fill = factor(match_win))) +
+  geom_bar(position = "fill") +
+  labs(x = "Early Win (1 = Yes)", y = "Proportion", fill = "Match Win")

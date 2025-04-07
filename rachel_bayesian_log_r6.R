@@ -1,10 +1,10 @@
 # Rachel Stienstra
 # ISTA 498 Senior Capstone
-# April 3, 2025
+# April 6, 2025
 
-# this code performs a classic logistic regression on R6 pro match data
+# This code performs a bayesian logistic regression on R6 pro match data
 
-# libraries -----------------------------------------------------------------
+# libraries ---------------------------------------------------------------
 
 library(tidyverse)
 library(dplyr)
@@ -14,7 +14,6 @@ library(ggplot2)
 library(readr)
 library(yardstick)
 library(broom)
-library(rstanarm)
 set.seed(1999)
 options(scipen=999)
 
@@ -22,7 +21,8 @@ options(scipen=999)
 
 
 
-# data load + clean --------------------------------------------------------------
+
+# data load _ clean -------------------------------------------------------
 
 # Constructs the URL for the Google sheet that contains the R6 data
 sheet_id <- "1JWk84PgKI_DNqgl8ncdx8_KJpBi7l7ZuoHrCutoBnGc"
@@ -49,7 +49,7 @@ r6_data <- r6 %>%
 
 
 
-# train and test split ----------------------------------------------------
+# train + test split ------------------------------------------------------
 
 # Split R6 data into training 80% and testing 20% sets based on match win (the target)
 train_index <- createDataPartition(r6_data$match_win, p = 0.8, list = FALSE)
@@ -62,26 +62,29 @@ test_data <- r6_data[-train_index, ]
 
 # model -------------------------------------------------------------------
 
-# Fit the logistic regression model
-log_model <- glm(match_win ~ early_win_indicator, family = "binomial", data = train_data)
-
-# Check the model summary - p value less than 0.05
-summary(log_model)
-
+bayesian_log_model <- stan_glm(match_win ~ early_win_indicator, 
+                               family = "binomial", 
+                               data = train_data,
+                               prior = normal(0,1))
 
 
 
 
-# predictions + evaluation -------------------------------------------------------------
+
+# model evaluation --------------------------------------------------------
+
+# summary stats
+summary(bayesian_log_model)
 
 # Generate predictions using the logistic regression model on the test data
-predictions <- predict(log_model, newdata = test_data, type = "response")
+predictions <- predict(bayesian_log_model, newdata = test_data, type = "response")
 # Convert predicted probabilities into 1 for win, 0 for loss
 predicted_class <- ifelse(predictions >= 0.5, 1, 0)
 
 # Confusion Matrix to compare predictions vs actual
 conf_matrix <- table(predicted_class, test_data$match_win)
 print(conf_matrix)
+
 
 
 
@@ -97,18 +100,3 @@ accuracy_score <- accuracy(test_results, truth = match_win, estimate = predicted
 print(accuracy_score)
 
 
-
-# Calculate odds ratio for r6
-tidy(log_model, exponentiate = TRUE, conf.int = TRUE)
-
-
-
-
-
-# visualizations ----------------------------------------------------------
-
-# Plot distribution of win rates based on early win indicator
-r6_data %>%
-  ggplot(aes(x = factor(early_win_indicator), fill = factor(match_win))) +
-  geom_bar(position = "fill") +
-  labs(x = "Early Win (1 = Yes)", y = "Proportion", fill = "Match Win")

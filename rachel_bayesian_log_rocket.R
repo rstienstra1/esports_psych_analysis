@@ -1,10 +1,10 @@
 # Rachel Stienstra
 # ISTA 498 Senior Capstone
-# April 3, 2025
+# April 6, 2025
 
-# This code performs a classic logistic regression on rocket league match data
+# This code performs a bayesian logistic regression on rocket league match data
 
-# libraries -----------------------------------------------------------------
+# libraries -------------------------------------------------------------------
 
 library(tidyverse)
 library(dplyr)
@@ -20,7 +20,9 @@ options(scipen=999)
 
 
 
-# data load + clean -------------------------------------------------------
+
+
+# data load _ clean -------------------------------------------------------
 
 # Constructs the URL for the Google sheet that contains the Rocket League data
 sheet_id <- "1JWk84PgKI_DNqgl8ncdx8_KJpBi7l7ZuoHrCutoBnGc"
@@ -60,26 +62,29 @@ test_data <- rocket_data[-train_index, ]
 
 # model -------------------------------------------------------------------
 
-# Fit the logistic regression model
-log_model <- glm(match_win ~ early_win_indicator, family = "binomial", data = train_data)
-
-# Check the model summary - p value less than 0.05
-summary(log_model)
-
+bayesian_log_model <- stan_glm(match_win ~ early_win_indicator, 
+                               family = "binomial", 
+                               data = train_data,
+                               prior = normal(0,1))
 
 
 
 
-# predictions + evaluation -------------------------------------------------------------
+
+# model evaluation --------------------------------------------------------
+
+# summary stats
+summary(bayesian_log_model)
 
 # Generate predictions using the logistic regression model on the test data
-predictions <- predict(log_model, newdata = test_data, type = "response")
+predictions <- predict(bayesian_log_model, newdata = test_data, type = "response")
 # Convert predicted probabilities into 1 for win, 0 for loss
 predicted_class <- ifelse(predictions >= 0.5, 1, 0)
 
 # Confusion Matrix to compare predictions vs actual
 conf_matrix <- table(predicted_class, test_data$match_win)
 print(conf_matrix)
+
 
 
 
@@ -93,23 +98,3 @@ test_results <- test_data %>%
 accuracy_score <- accuracy(test_results, truth = match_win, estimate = predicted)
 # Print accuracy score
 print(accuracy_score)
-
-
-
-
-# Calculate odds ratio for rocket league
-tidy(log_model, exponentiate = TRUE, conf.int = TRUE)
-
-
-
-
-
-
-# visualization -----------------------------------------------------------
-
-# Plot distribution of win rates based on early win indicator
-rocket_data %>%
-  ggplot(aes(x = factor(early_win_indicator), fill = factor(match_win))) +
-  geom_bar(position = "fill") +
-  labs(x = "Early Win (1 = Yes)", y = "Proportion", fill = "Match Win")
-

@@ -7,11 +7,8 @@
 # libraries -----------------------------------------------------------------
 
 library(tidyverse)
-library(dplyr)
 library(caret)
-library(randomForest)
 library(ggplot2)
-library(readr)
 library(yardstick)
 library(broom)
 set.seed(1999)

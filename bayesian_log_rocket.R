@@ -9,14 +9,11 @@
 library(tidyverse)
 library(dplyr)
 library(caret)
-library(randomForest)
-library(ggplot2)
 library(readr)
 library(yardstick)
-library(broom)
+library(brms)
 set.seed(1999)
 options(scipen=999)
-
 
 
 
@@ -62,10 +59,13 @@ test_data <- rocket_data[-train_index, ]
 
 # model -------------------------------------------------------------------
 
-bayesian_log_model <- stan_glm(match_win ~ early_win_indicator, 
-                               family = "binomial", 
-                               data = train_data,
-                               prior = normal(0,1))
+# Fitting a bayesian logistic regression model with a weak normal prior
+prior <- set_prior("normal(0, 1)", class = "b")
+
+bayesian_log_model <- brm(match_win ~ early_win_indicator, 
+                          family = bernoulli(), 
+                          data = train_data,
+                          prior = prior)
 
 
 
@@ -76,10 +76,16 @@ bayesian_log_model <- stan_glm(match_win ~ early_win_indicator,
 # summary stats
 summary(bayesian_log_model)
 
-# Generate predictions using the logistic regression model on the test data
+
+
+
+
+# Generate predictions (posterior predictive draws)
 predictions <- predict(bayesian_log_model, newdata = test_data, type = "response")
-# Convert predicted probabilities into 1 for win, 0 for loss
-predicted_class <- ifelse(predictions >= 0.5, 1, 0)
+# Average across the draws for each observation
+mean_preds <- rowMeans(predictions)
+# Convert predicted probabilities into 1 for win or 0 for loss
+predicted_class <- ifelse(mean_preds >= 0.5, 1, 0)
 
 # Confusion Matrix to compare predictions vs actual
 conf_matrix <- table(predicted_class, test_data$match_win)
@@ -88,13 +94,14 @@ print(conf_matrix)
 
 
 
-
-# Added model performance metrics with yardstick
-# Convert estimate and truth to factor
+# Add model eval with yardstick
 test_results <- test_data %>%
-  mutate(predicted = factor(predicted_class),
-         match_win = factor(match_win))  # Convert match_win to factor
-# Calculate accuracy based on actual results and predictions
-accuracy_score <- accuracy(test_results, truth = match_win, estimate = predicted)
-# Print accuracy score
-print(accuracy_score)
+  mutate(pred = rowMeans(predict(bayesian_log_model, newdata = test_data, type = "response")),
+         pred_class = factor(ifelse(pred >= 0.5, 1, 0)),
+         match_win = factor(match_win))
+
+# Accuracy
+accuracy(test_results, truth = match_win, estimate = pred_class)
+
+
+

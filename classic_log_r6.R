@@ -7,14 +7,10 @@
 # libraries -----------------------------------------------------------------
 
 library(tidyverse)
-library(dplyr)
 library(caret)
-library(randomForest)
 library(ggplot2)
-library(readr)
 library(yardstick)
 library(broom)
-library(rstanarm)
 set.seed(1999)
 options(scipen=999)
 

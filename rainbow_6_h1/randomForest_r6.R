@@ -38,7 +38,9 @@ r6 <- r6 %>%
 # Make new columns indicating if team a won the match and if they had more early round wins
 r6_data <- r6 %>%
   mutate(match_win = ifelse(winner == team_a, 1, 0),
-         early_win_indicator = ifelse(early_rounds_won_a > early_rounds_won_b, 1, 0))
+         early_win_indicator = ifelse(early_rounds_won_a > early_rounds_won_b, 1, 0),
+         map = as.factor(map),
+         match_win = as.factor(match_win))
 
 
 
@@ -51,15 +53,20 @@ train_index <- createDataPartition(r6_data$match_win, p = 0.8, list = FALSE)
 train_data <- r6_data[train_index, ]
 test_data <- r6_data[-train_index, ]
 
+# factor levels in test match training
+test_data$map <- factor(test_data$map, levels = levels(train_data$map))
+
 
 
 
 
 # model -------------------------------------------------------------------
 
-rf_model <- randomForest(match_win ~ early_win_indicator, data = train_data, importance = TRUE)
+rf_model <- randomForest(match_win ~ early_win_indicator + map, 
+                         data = train_data, 
+                         importance = TRUE)
 
-varImpPlot(rf_model)
+
 
 
 
@@ -78,6 +85,24 @@ conf_matrix <- table(predictions, test_data$match_win)
 accuracy <- sum(diag(conf_matrix)) / sum(conf_matrix)
 print(paste("Accuracy: ", accuracy))
 
+
+
+
+
+# data viz ---------------------------------------------------------------
+
+# variable importance plot
+varImpPlot(rf_model)
+
+# confusion matrix plot
+conf_matrix_df <- as.data.frame(as.table(conf_matrix))
+colnames(conf_matrix_df) <- c("Predicted", "Actual", "Count")
+
+ggplot(conf_matrix_df, aes(x = Actual, y = Predicted, fill = Count)) +
+  geom_tile() +
+  geom_text(aes(label = Count), color = "white", size = 6) +
+  scale_fill_gradient(low = "lightblue", high = "darkblue") +
+  labs(title = "Confusion Matrix", x = "Actual", y = "Predicted")
 
 
 

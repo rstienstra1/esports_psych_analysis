@@ -37,8 +37,12 @@ rocket_league <- rocket_league %>%
 
 # Make new columns indicating if team a won the match and if they scored the first goal
 rocket_data <- rocket_league %>%
-  mutate(match_win = ifelse(winner == team_a, 1, 0),
-         early_win_indicator = ifelse(first_goal_a > first_goal_b, 1, 0))
+  mutate(
+    match_win = ifelse(winner == team_a, 1, 0),
+    early_win_indicator = ifelse(first_goal_a > first_goal_b, 1, 0),
+    match_win = as.factor(match_win),
+    tournament = as.factor(tournament)
+  )
 
 
 
@@ -57,10 +61,12 @@ test_data <- rocket_data[-train_index, ]
 
 # model -------------------------------------------------------------------
 
-rf_model <- randomForest(match_win ~ early_win_indicator, data = train_data, importance = TRUE)
-
-varImpPlot(rf_model)
-
+# use early win indicator and tournament to build rf model
+rf_model <- randomForest(
+  match_win ~ early_win_indicator + tournament,
+  data = train_data,
+  importance = TRUE
+)
 
 
 
@@ -68,15 +74,32 @@ varImpPlot(rf_model)
 
 # model evaluation --------------------------------------------------------
 
-# Predictions
 predictions <- predict(rf_model, newdata = test_data)
 
-# Confusion Matrix
 conf_matrix <- table(predictions, test_data$match_win)
 
-# Accuracy
 accuracy <- sum(diag(conf_matrix)) / sum(conf_matrix)
-print(paste("Accuracy: ", accuracy))
+print(paste("Accuracy:", round(accuracy)))
+
+
+
+
+
+# data viz ---------------------------------------------------------------
+
+# variable importance plot
+varImpPlot(rf_model)
+
+# confusion matrix plot
+conf_matrix_df <- as.data.frame(as.table(conf_matrix))
+colnames(conf_matrix_df) <- c("Predicted", "Actual", "Count")
+
+ggplot(conf_matrix_df, aes(x = Actual, y = Predicted, fill = Count)) +
+  geom_tile() +
+  geom_text(aes(label = Count), color = "white", size = 6) +
+  scale_fill_gradient(low = "lightblue", high = "darkblue") +
+  labs(title = "Confusion Matrix", x = "Actual", y = "Predicted")
+
 
 
 

@@ -12,6 +12,7 @@ library(caret)
 library(readr)
 library(yardstick)
 library(brms)
+library(ggplot2)
 set.seed(1999)
 options(scipen=999)
 
@@ -102,5 +103,36 @@ test_results <- test_data %>%
 
 # Accuracy
 accuracy(test_results, truth = match_win, estimate = pred_class)
+
+
+
+
+
+# data viz --------------------------------------------------------
+
+# confusion matrix heatmap
+conf_df <- as.data.frame(conf_matrix)
+colnames(conf_df) <- c("Predicted", "Actual", "Count")
+
+ggplot(conf_df, aes(x = Actual, y = Predicted, fill = Count)) +
+  geom_tile() +
+  geom_text(aes(label = Count), color = "white", size = 5) +
+  scale_fill_gradient(low = "lightblue", high = "darkblue") +
+  labs(title = "Confusion Matrix Heatmap")
+
+# predicted probability distribution
+ggplot(test_results, aes(x = pred, fill = match_win)) +
+  geom_density(alpha = 0.5) +
+  labs(title = "Density of Predicted Probabilities by Actual Match Outcome",
+       x = "Predicted Probability of Win", y = "Density")
+
+# Plot distribution of win rates based on early win indicator
+r6_data %>%
+  mutate(early_win_indicator = factor(early_win_indicator, labels = c("Lost Early", "Won Early")),
+         match_win = factor(match_win, labels = c("Loss", "Win"))) %>%
+  ggplot(aes(x = early_win_indicator, fill = match_win)) +
+  geom_bar(position = "fill") +
+  labs(title = "Match Win Proportion by Early Round Outcome",
+       x = "Early Round Win?", y = "Proportion", fill = "Match Result")
 
 

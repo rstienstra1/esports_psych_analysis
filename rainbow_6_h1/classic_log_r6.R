@@ -105,6 +105,19 @@ tidy(log_model, exponentiate = TRUE, conf.int = TRUE)
 
 # Plot distribution of win rates based on early win indicator
 r6_data %>%
-  ggplot(aes(x = factor(early_win_indicator), fill = factor(match_win))) +
+  mutate(early_win_indicator = factor(early_win_indicator, labels = c("Lost Early", "Won Early")),
+         match_win = factor(match_win, labels = c("Loss", "Win"))) %>%
+  ggplot(aes(x = early_win_indicator, fill = match_win)) +
   geom_bar(position = "fill") +
-  labs(x = "Early Win (1 = Yes)", y = "Proportion", fill = "Match Win")
+  labs(title = "Match Win Proportion by Early Round Outcome",
+       x = "Early Round Win?", y = "Proportion", fill = "Match Result")
+
+# confusion matrix heatmap
+conf_df <- as.data.frame(conf_matrix)
+colnames(conf_df) <- c("Predicted", "Actual", "Count")
+
+ggplot(conf_df, aes(x = Actual, y = Predicted, fill = Count)) +
+  geom_tile() +
+  geom_text(aes(label = Count), color = "white", size = 5) +
+  scale_fill_gradient(low = "lightblue", high = "darkblue") +
+  labs(title = "Confusion Matrix Heatmap")

@@ -2,6 +2,10 @@
 # ISTA 498 Senior Capstone
 # April 3, 2025
 
+# This R script is intended to analyze competitive match data from Rainbow Six Siege 
+# and Rocket League in order to identify patterns within a series of matches and to 
+# model how momentum-like features influence series outcomes using Bayesian logistic 
+# regression.
 
 # libraries ---------------------------------------------------------------
 
@@ -42,6 +46,7 @@ all_matches <- bind_rows(r6, rl)
 
 # preprocess and identify series --------------------------------------------
 
+# Add fields to identify series and normalize team names for grouping
 all_matches <- all_matches %>%
   mutate(
     team1 = pmin(team_a, team_b),
@@ -61,25 +66,31 @@ all_matches <- all_matches %>%
 
 # feature extraction function -----------------------------------------------
 
+# Define a function to compute features for each series
 extract_features <- function(df) {
   outcomes <- df %>% arrange(match_order) %>% pull(winner_norm)
   
+  # Calculate the longest streak of wins by the same team (ignoring "Unknown")
   streaks <- rle(outcomes)
   longest_streak <- max(streaks$lengths[streaks$values %in% c("Team1", "Team2")])
   
+  # Count how often the winning team changes (alternations)
   alternations <- sum(
     outcomes[-1] != outcomes[-length(outcomes)] &
       outcomes[-1] != "Unknown" &
       outcomes[-length(outcomes)] != "Unknown"
   )
   
+  # Count wins for each normalized team
   team1_wins <- sum(outcomes == "Team1")
   team2_wins <- sum(outcomes == "Team2")
   
+  # Determine which team won the series
   series_winner <- if (team1_wins > team2_wins) "Team1"
   else if (team2_wins > team1_wins) "Team2"
   else "Tie"
   
+  # Return summary features as a tibble
   tibble(
     longest_streak = longest_streak,
     alternations = alternations,
@@ -94,12 +105,14 @@ extract_features <- function(df) {
 
 # apply feature extraction -----------------------------------------------------
 
+# Apply feature extraction to each series
 series_features <- all_matches %>%
   group_by(series_id) %>%
   group_modify(~ extract_features(.x)) %>%
   ungroup() %>%
-  filter(series_winner != "Tie") %>%
+  filter(series_winner != "Tie") %>% # Exclude ties
   mutate(
+    # Create binary outcome for model: 1 if Team1 won, 0 if Team2 won
     series_win = if_else(series_winner == "Team1", 1, 0),
     series_win = factor(series_win, levels = c(0, 1), labels = c("Team2 Wins", "Team1 Wins"))
   )

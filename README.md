@@ -36,18 +36,22 @@ This project investigates whether **early game performance influences the final 
 > Teams with consecutive wins win the full series more often than those with alternating patterns.
 
 **Methods Used:**
-- 
+- Bayesian Logistic Regression (brms)
+- Hierarchical Bayesian Modeling (random slopes by game)
+- Exploratory Data Visualization (boxplots, transition matrix, sequence plots)
 
 **Tools & Languages:**
-- 
+- R (tidyverse, brms, ggplot2, dplyr)
+- R Markdown / Quarto
+- Git & GitHub for version control
 
 ## Key Findings
 
-### Rainbow 6 Siege
-- 
-
-### Rocket League
--
+### Rainbow 6 Siege AND Rocket League
+- Longer win streaks are positively associated with winning a series.
+- Fewer alternations (i.e., back-and-forth wins between teams) are linked to higher series win probability.
+- Bayesian models indicate a meaningful relationship between these momentum-like features and match outcomes, though the effect size varies by game.
+- Hierarchical modeling reveals considerable variation in how win streaks impact outcomes across games. Some uncertainty remains, but the overall trend supports a momentum effect at the series level.
 
 ---
 

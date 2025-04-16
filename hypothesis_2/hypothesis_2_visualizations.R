@@ -1,23 +1,22 @@
 # Tom Oswald
 # ISTA 498 Senior Capstone
-# April 3, 2025
+# April 16, 2025
 
-# This R script is intended to analyze competitive match data from Rainbow Six Siege 
-# and Rocket League in order to identify patterns within a series of matches and to 
-# model how momentum-like features influence series outcomes using Bayesian logistic 
-# regression.
+# Hypothesis 2: Psychological Momentum and Comebacks
 
-# libraries ---------------------------------------------------------------
+# libraries----------------------------------------------------------------------------
 
 # Load required libraries
+library(brms)
 library(tidyverse)
-library(brms)  # For Bayesian modeling
+library(tidybayes)
+library(ggplot2)
 
 
 
 
 
-# data load + clean --------------------------------------------------------
+# data load in ------------------------------------------------------------------------
 
 sheet_id <- "1JWk84PgKI_DNqgl8ncdx8_KJpBi7l7ZuoHrCutoBnGc"
 r6_gid <- "716521061"   # Rainbow Six
@@ -44,9 +43,8 @@ all_matches <- bind_rows(r6, rl)
 
 
 
-# preprocess and identify series --------------------------------------------
+# Preprocess and Identify Series ------------------------------------------------------
 
-# Add fields to identify series and normalize team names for grouping
 all_matches <- all_matches %>%
   mutate(
     team1 = pmin(team_a, team_b),
@@ -64,33 +62,27 @@ all_matches <- all_matches %>%
 
 
 
-# feature extraction function -----------------------------------------------
+# Feature Extraction Function ---------------------------------------------------------
 
-# Define a function to compute features for each series
 extract_features <- function(df) {
   outcomes <- df %>% arrange(match_order) %>% pull(winner_norm)
   
-  # Calculate the longest streak of wins by the same team (ignoring "Unknown")
   streaks <- rle(outcomes)
   longest_streak <- max(streaks$lengths[streaks$values %in% c("Team1", "Team2")])
   
-  # Count how often the winning team changes (alternations)
   alternations <- sum(
     outcomes[-1] != outcomes[-length(outcomes)] &
       outcomes[-1] != "Unknown" &
       outcomes[-length(outcomes)] != "Unknown"
   )
   
-  # Count wins for each normalized team
   team1_wins <- sum(outcomes == "Team1")
   team2_wins <- sum(outcomes == "Team2")
   
-  # Determine which team won the series
   series_winner <- if (team1_wins > team2_wins) "Team1"
   else if (team2_wins > team1_wins) "Team2"
   else "Tie"
   
-  # Return summary features as a tibble
   tibble(
     longest_streak = longest_streak,
     alternations = alternations,
@@ -103,16 +95,14 @@ extract_features <- function(df) {
 
 
 
-# apply feature extraction -----------------------------------------------------
+# Apply Feature Extraction ---------------------------------------------------------
 
-# Apply feature extraction to each series
 series_features <- all_matches %>%
   group_by(series_id) %>%
   group_modify(~ extract_features(.x)) %>%
   ungroup() %>%
-  filter(series_winner != "Tie") %>% # Exclude ties
+  filter(series_winner != "Tie") %>%
   mutate(
-    # Create binary outcome for model: 1 if Team1 won, 0 if Team2 won
     series_win = if_else(series_winner == "Team1", 1, 0),
     series_win = factor(series_win, levels = c(0, 1), labels = c("Team2 Wins", "Team1 Wins"))
   )
@@ -120,8 +110,8 @@ series_features <- all_matches %>%
 
 
 
-# visualizations ----------------------------------------------------------
 
+# data viz -------------------------------------------------------------------------
 
 # 1. Boxplot: Longest Streak vs. Series Win
 ggplot(series_features, aes(x = series_win, y = longest_streak)) +
@@ -191,9 +181,9 @@ ggplot(transition_counts, aes(x = from, y = to, fill = n)) +
 
 
 
-# bayesian logistic regression --------------------------------------------
+# bayesian logistic regression --------------------------------------------------------
 
-# Basic Bayesian Logistic Regression
+# 5. Basic Bayesian Logistic Regression
 bayes_model <- brm(
   series_win ~ longest_streak + alternations,
   data = series_features,
@@ -202,10 +192,26 @@ bayes_model <- brm(
   seed = 123
 )
 
+# Visualize fixed effects using tidybayes
+bayes_model %>%
+  gather_draws(b_longest_streak, b_alternations) %>%
+  ggplot(aes(x = .value, y = .variable)) +
+  stat_halfeye(.width = 0.95, fill = "skyblue") +
+  geom_vline(xintercept = 0, linetype = "dashed") +
+  labs(
+    title = "Basic Bayesian Logistic Regression",
+    subtitle = "Pooled effect estimates across both games",
+    x = "Effect Size (Log-Odds)",
+    y = "Model Parameter"
+  ) +
+  theme_minimal()
+
+
+
 summary(bayes_model)
 plot(bayes_model)
 
-# Hierarchical Bayesian Model by Game
+# 6. Hierarchical Bayesian Model by Game
 bayes_hier_model <- brm(
   series_win ~ longest_streak + alternations + (1 + longest_streak | game),
   data = series_features,
@@ -214,7 +220,30 @@ bayes_hier_model <- brm(
   seed = 456
 )
 
+# Extract the fixed effect for longest_streak
+base_streak <- fixef(bayes_hier_model)["longest_streak", "Estimate"]
+
+# Visualize game-specific total effects (fixed + random)
+bayes_hier_model %>%
+  spread_draws(r_game[game, longest_streak]) %>%
+  mutate(total_effect = r_game + base_streak) %>%
+  ggplot(aes(x = total_effect, y = reorder(game, total_effect))) +
+  stat_halfeye(.width = 0.95, fill = "skyblue") +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "gray40") +
+  labs(
+    title = "Hierarchical Bayesian Model: Longest Streak Effect by Game",
+    subtitle = "Estimated effect of win streaks on series win probability",
+    x = "Effect Size (Log-Odds)",
+    y = "Game"
+  ) +
+  theme_minimal()
+
+
 summary(bayes_hier_model)
 plot(bayes_hier_model)
+
+
+
+
 
 

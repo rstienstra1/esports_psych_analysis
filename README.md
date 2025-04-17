@@ -60,15 +60,19 @@ This project investigates whether **early game performance influences the final 
 
 
 **Methods Used:**
-- 
+- Bayesian Logistic Regression (`brms`)
 
 **Tools & Languages:**
-- 
+- R (tidyverse, brms, ggplot2, dplyr)
+- R Markdown / Quarto
+- Git & GitHub for version control
 
 ## Key Findings
 
 ### Rainbow 6 Siege
-- 
+- Early losses significantly reduced liklihood of winning match.
+- Higher seeded teams may recover slightly better from an early loss, however with a low p-value of 0.145, it is not statistically significant.
 
 ### Rocket League
--
+- Losing the first goal signifncatly reduces the odds of a team winning the match.
+- Early losses hurts higher ranked teams slightly more than lower ranked ones. 

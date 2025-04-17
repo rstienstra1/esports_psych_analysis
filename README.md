@@ -11,7 +11,7 @@ This project investigates whether **early game performance influences the final 
 - Bayesian Logistic Regression (`brms`)
 - Classic Logistic Regression (`glm`)
 - Random Forest Modeling (`randomForest`)
-- Chi-Square & Proportion Testing
+- Proportion Testing
 
 **Tools & Languages:**
 - R (tidyverse, brms, yardstick, randomForest, ggplot2)

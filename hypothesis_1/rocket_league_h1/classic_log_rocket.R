@@ -95,7 +95,7 @@ print(accuracy_score)
 
 
 # Calculate odds ratio for rocket league
-tidy(log_model, exponentiate = TRUE, conf.int = TRUE)
+rocket_odds <- tidy(log_model, exponentiate = TRUE, conf.int = TRUE)
 
 
 

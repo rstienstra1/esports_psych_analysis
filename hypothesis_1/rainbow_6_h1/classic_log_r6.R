@@ -95,7 +95,7 @@ print(accuracy_score)
 
 
 # Calculate odds ratio for r6
-tidy(log_model, exponentiate = TRUE, conf.int = TRUE)
+r6_odds <- tidy(log_model, exponentiate = TRUE, conf.int = TRUE)
 
 
 

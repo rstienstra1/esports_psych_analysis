@@ -131,14 +131,14 @@ print(paste("\nCramer's V (effect size):", round(cramers_v, 3)))
 # Visualization 1: Win proportion by early round outcome
 ggplot(r6_data, aes(x = early_outcome, fill = factor(team_a_win))) +
   geom_bar(position = "fill") +
-  scale_fill_manual(values = c("red", "green"), 
+  scale_fill_manual(values = c("darkblue", "lightblue"), 
                     labels = c("Team B Won Match", "Team A Won Match"),
                     name = "Match Outcome") +
   labs(title = "Match Win Proportion by Early Round Outcome",
        subtitle = "Early rounds = first 3 rounds of the match",
        x = "Early Round Outcome",
        y = "Proportion of Matches") +
-  theme_minimal() +
+  theme_minimal(base_size=13) +
   theme(legend.position = "top")
 
 # Visualization 2: Distribution of early round wins
@@ -149,7 +149,7 @@ ggplot(r6_data, aes(x = early_rounds_won_a)) +
        subtitle = "Out of first 3 rounds",
        x = "Number of Early Rounds Won by Team A",
        y = "Number of Matches") +
-  theme_minimal()
+  theme_minimal(base_size = 13)
 
 # Additional analysis: Average final score difference based on early round outcome
 r6_data %>%

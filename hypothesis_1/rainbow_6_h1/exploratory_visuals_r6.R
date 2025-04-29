@@ -39,12 +39,14 @@ team_stats <- r6 %>%
   group_by(team) %>%
   summarize(matches_played = n(), wins = sum(win), win_rate = wins / matches_played)
 # Bar plot win rates for each team
-ggplot(team_stats, aes(x = reorder(team, win_rate), y = win_rate, fill = team)) +
+ggplot(team_stats, aes(x = reorder(team, win_rate), y = win_rate, fill = win_rate)) +
   geom_col() +
   coord_flip() +
+  scale_fill_viridis_c(option = "C") +
   labs(title = "Win Rates by Team",
-       x = "Team",
-       y = "Win Rate")
+       x = "Team", y = "Win Rate", fill = "Matches Played") +
+  theme_minimal(base_size = 14) + 
+  theme(legend.position = "bottom")
 
 
 
@@ -54,13 +56,15 @@ ggplot(team_stats, aes(x = reorder(team, win_rate), y = win_rate, fill = team)) 
 map_counts <- r6 %>%
   count(map, name = "times_played")
 # Plots map counts
-ggplot(map_counts, aes(x = reorder(map, times_played), y = times_played, fill = map)) +
+ggplot(map_counts, aes(x = reorder(map, times_played), y = times_played, fill = times_played)) +
   geom_col() +
   coord_flip() +
+  scale_fill_viridis_c(option = "C", limits = c(0, max(team_stats$matches_played))) +  # Match scale with team stats
   labs(title = "Number of Matches Played per Map",
        x = "Map",
        y = "Times Played") +
-  theme(legend.position = "none")
+  theme_minimal(base_size = 14) +
+  theme(legend.position = "bottom")
 
 
 
@@ -79,11 +83,13 @@ win_rate_data <- r6 %>%
                names_to = "team", 
                values_to = "win_rate") %>%
   mutate(team = ifelse(team == "win_rate_a", "Team A", "Team B"))
+
 # Bar plot comparing win rates by team based on the number of early rounds won
 ggplot(win_rate_data, aes(x = factor(ifelse(team == "Team A", early_rounds_won_a, early_rounds_won_b)), 
                           y = win_rate, fill = team)) +
-  geom_col(position = "dodge", color = "black") +
+  geom_col(position = "dodge", aes(alpha = match_count), color = "black") +
+  scale_alpha_continuous(range = c(0.4, 1)) +
+  scale_fill_manual(values = c("Team A" = "darkblue", "Team B" = "lightblue")) +
   labs(title = "Win Rate Based on Early Rounds Won",
-       x = "Early Rounds Won",
-       y = "Win Rate",
-       fill = "Team")
+       x = "Early Rounds Won", y = "Win Rate", fill = "Team", alpha = "Match Count") +
+  theme_minimal(base_size = 14)

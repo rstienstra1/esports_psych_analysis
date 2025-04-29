@@ -92,9 +92,16 @@ newdata_r6$early_loss_label <- ifelse(newdata_r6$early_loss == 1, "Early Loss", 
 ggplot(newdata_r6, aes(x = seed_proxy, y = predicted_prob, color = early_loss_label)) +
   geom_line(size = 1.2) +
   labs(
-    title = "Rainbow Six: Win Probability by Seed Strength & Early Loss",
+    title = "Win Probability by Seed Strength & Early Loss",
+    subtitle = "Rainbow 6 Siege",
     x = "Seed Proxy (Cumulative Wins Before Match)",
-    y = "Predicted Probability of Winning",
+    y = "Predicted Probability\n(Winning)",
     color = "Early Loss"
   ) +
-  theme_minimal(base_size = 14)
+  theme_minimal(base_size = 14) +
+  theme(
+    legend.position = "bottom",
+    plot.title.position = "plot"
+  )
+
+

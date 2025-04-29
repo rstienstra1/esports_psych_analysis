@@ -125,7 +125,7 @@ ggplot(series_features, aes(x = series_win, y = longest_streak)) +
 
 # 2. Boxplot: Alternations vs. Series Win
 ggplot(series_features, aes(x = series_win, y = alternations)) +
-  geom_boxplot(fill = "khaki") +
+  geom_boxplot(fill = "steelblue") +
   facet_wrap(~ game) +
   labs(
     title = "Alternations vs Series Win (by Game)",
@@ -138,15 +138,26 @@ example_series <- all_matches %>%
   filter(series_id %in% sample(unique(series_id), 5)) %>%
   arrange(series_id, match_order)
 
-ggplot(example_series, aes(x = match_order, y = series_id, color = winner_norm, group = series_id)) +
-  geom_line(linewidth = 1.2) +
-  geom_point(size = 2) +
-  scale_color_manual(values = c("Team1" = "blue", "Team2" = "red", "Unknown" = "gray")) +
-  labs(
-    title = "Sequence Pattern of Match Outcomes (Sample Series)",
-    x = "Match Order", y = "Series ID"
+ggplot(example_series, aes(
+  x = match_order,
+  y = fct_reorder(str_wrap(series_id, width = 30), match_order, .fun = max, .desc = TRUE),
+  fill = winner_norm
+)) +
+  geom_tile(color = "white", height = 0.9, width = 0.9) +
+  scale_fill_manual(
+    values = c("Team1" = "darkblue", "Team2" = "lightblue", "Unknown" = "gray70"),
+    name = "Match Winner"
   ) +
-  theme_minimal()
+  labs(
+    title = "Match Outcome Sequences by Series",
+    x = "Match Order",
+    y = "Series"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    axis.text.y = element_text(size = 8),
+    panel.grid = element_blank()
+  )
 
 # 4. Transition Matrix (Heatmap version)
 get_transitions <- function(outcomes) {
@@ -168,14 +179,15 @@ transition_counts <- transitions_df %>%
 ggplot(transition_counts, aes(x = from, y = to, fill = n)) +
   geom_tile(color = "white") +
   geom_text(aes(label = n), color = "black", size = 4) +
-  scale_fill_gradient(low = "lightblue", high = "steelblue") +
+  scale_fill_gradient(low = "lightblue", high = "darkblue") +
   labs(
     title = "Win Transition Matrix (Heatmap)",
     x = "Previous Match Result",
     y = "Next Match Result",
     fill = "Count"
   ) +
-  theme_minimal()
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
 
 

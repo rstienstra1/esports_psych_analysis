@@ -103,9 +103,24 @@ test_results <- test_data %>%
 # Accuracy
 accuracy(test_results, truth = match_win, estimate = pred_class)
 
+# Interpret Bayesian model's odds ratio
+posterior_summary(bayesian_log_model, probs = c(0.025, 0.975)) %>%
+  as_tibble(rownames = "term") %>%
+  filter(str_detect(term, "early_win_indicator")) %>%
+  mutate(odds_ratio = exp(Estimate),
+         lower = exp(Q2.5),
+         upper = exp(Q97.5))
 
+# posterior predictive check
+pp_check(bayesian_log_model)
 
+# Compare to frequentist logistic regression
+glm(match_win ~ early_win_indicator, family = binomial(), data = train_data)
 
+# Simulate predicted win probabilities
+newdata <- tibble(early_win_indicator = c(1, 0))
+posterior_epred(bayesian_log_model, newdata = newdata) %>%
+  rowMeans()
 
 # data viz --------------------------------------------------------
 
@@ -117,7 +132,7 @@ ggplot(conf_df, aes(x = Actual, y = Predicted, fill = Count)) +
   geom_tile() +
   geom_text(aes(label = Count), color = "white", size = 5) +
   scale_fill_gradient(low = "lightblue", high = "darkblue") +
-  labs(title = "Confusion Matrix Heatmap")
+  labs(title = "Confusion Matrix Heatmap (Rocket League)")
 
 # predicted probability distribution
 ggplot(test_results, aes(x = pred, fill = match_win)) +
@@ -131,7 +146,15 @@ rocket_data %>%
          match_win = factor(match_win, labels = c("Loss", "Win"))) %>%
   ggplot(aes(x = early_win_indicator, fill = match_win)) +
   geom_bar(position = "fill") +
-  labs(title = "Match Win Proportion by Early Round Outcome",
+  scale_fill_manual(values = c("Loss" = "darkblue", "Win" = "lightblue")) +
+  labs(title = "Match Win Proportion by Early Round Outcome (Rocket League)",
        x = "Early Round Win?", y = "Proportion", fill = "Match Result")
 
-
+# Plot posterior distribution of odds ratio
+bayesian_log_model %>%
+  spread_draws(b_early_win_indicator) %>%
+  mutate(or = exp(b_early_win_indicator)) %>%
+  ggplot(aes(x = or)) +
+  geom_density(fill = "steelblue", alpha = 0.6) +
+  labs(title = "Posterior Distribution of Odds Ratio for Early Win",
+       x = "Odds Ratio", y = "Density")

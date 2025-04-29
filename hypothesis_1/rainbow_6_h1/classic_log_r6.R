@@ -59,10 +59,10 @@ test_data <- r6_data[-train_index, ]
 # model -------------------------------------------------------------------
 
 # Fit the logistic regression model
-log_model <- glm(match_win ~ early_win_indicator, family = "binomial", data = train_data)
+classic_log_model <- glm(match_win ~ early_win_indicator, family = "binomial", data = train_data)
 
 # Check the model summary - p value less than 0.05
-summary(log_model)
+summary(classic_log_model)
 
 
 
@@ -71,7 +71,7 @@ summary(log_model)
 # predictions + evaluation -------------------------------------------------------------
 
 # Generate predictions using the logistic regression model on the test data
-predictions <- predict(log_model, newdata = test_data, type = "response")
+predictions <- predict(classic_log_model, newdata = test_data, type = "response")
 # Convert predicted probabilities into 1 for win, 0 for loss
 predicted_class <- ifelse(predictions >= 0.5, 1, 0)
 
@@ -85,8 +85,8 @@ print(conf_matrix)
 # Added model performance metrics with yardstick
 # Convert estimate and truth to factor
 test_results <- test_data %>%
-  mutate(predicted = factor(predicted_class),
-         match_win = factor(match_win))  # Convert match_win to factor
+  mutate(predicted = factor(predicted_class, levels = c(0, 1)),
+         match_win = factor(match_win, levels = c(0, 1)))
 # Calculate accuracy based on actual results and predictions
 accuracy_score <- accuracy(test_results, truth = match_win, estimate = predicted)
 # Print accuracy score
@@ -95,22 +95,13 @@ print(accuracy_score)
 
 
 # Calculate odds ratio for r6
-r6_odds <- tidy(log_model, exponentiate = TRUE, conf.int = TRUE)
+r6_odds <- tidy(classic_log_model, exponentiate = TRUE, conf.int = TRUE)
 
-
-
+print(r6_odds)
+# Interpretation: An odds ratio > 1 means early round wins increase match win probability.
 
 
 # visualizations ----------------------------------------------------------
-
-# Plot distribution of win rates based on early win indicator
-r6_data %>%
-  mutate(early_win_indicator = factor(early_win_indicator, labels = c("Lost Early", "Won Early")),
-         match_win = factor(match_win, labels = c("Loss", "Win"))) %>%
-  ggplot(aes(x = early_win_indicator, fill = match_win)) +
-  geom_bar(position = "fill") +
-  labs(title = "Match Win Proportion by Early Round Outcome",
-       x = "Early Round Win?", y = "Proportion", fill = "Match Result")
 
 # confusion matrix heatmap
 conf_df <- as.data.frame(conf_matrix)
@@ -120,4 +111,7 @@ ggplot(conf_df, aes(x = Actual, y = Predicted, fill = Count)) +
   geom_tile() +
   geom_text(aes(label = Count), color = "white", size = 5) +
   scale_fill_gradient(low = "lightblue", high = "darkblue") +
-  labs(title = "Confusion Matrix Heatmap")
+  labs(
+    title = "Confusion Matrix Heatmap (R6)",
+    subtitle = "Classic Logistic Regression"
+  )

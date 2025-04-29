@@ -58,10 +58,10 @@ test_data <- rocket_data[-train_index, ]
 # model -------------------------------------------------------------------
 
 # Fit the logistic regression model
-log_model <- glm(match_win ~ early_win_indicator, family = "binomial", data = train_data)
+classic_log_model <- glm(match_win ~ early_win_indicator, family = "binomial", data = train_data)
 
 # Check the model summary - p value less than 0.05
-summary(log_model)
+summary(classic_log_model)
 
 
 
@@ -70,7 +70,7 @@ summary(log_model)
 # predictions + evaluation -------------------------------------------------------------
 
 # Generate predictions using the logistic regression model on the test data
-predictions <- predict(log_model, newdata = test_data, type = "response")
+predictions <- predict(classic_log_model, newdata = test_data, type = "response")
 # Convert predicted probabilities into 1 for win, 0 for loss
 predicted_class <- ifelse(predictions >= 0.5, 1, 0)
 
@@ -95,23 +95,14 @@ print(accuracy_score)
 
 
 # Calculate odds ratio for rocket league
-rocket_odds <- tidy(log_model, exponentiate = TRUE, conf.int = TRUE)
+rocket_odds <- tidy(classic_log_model, exponentiate = TRUE, conf.int = TRUE)
 
-
-
+print(rocket_odds)
+# Interpretation: An odds ratio > 1 means early round wins increase match win probability.
 
 
 
 # visualization -----------------------------------------------------------
-
-# Plot distribution of win rates based on early win indicator
-rocket_data %>%
-  mutate(early_win_indicator = factor(early_win_indicator, labels = c("Lost Early", "Won Early")),
-         match_win = factor(match_win, labels = c("Loss", "Win"))) %>%
-  ggplot(aes(x = early_win_indicator, fill = match_win)) +
-  geom_bar(position = "fill") +
-  labs(title = "Match Win Proportion by Early Round Outcome",
-       x = "Early Round Win?", y = "Proportion", fill = "Match Result")
 
 # confusion matrix heatmap
 conf_df <- as.data.frame(conf_matrix)
@@ -121,4 +112,7 @@ ggplot(conf_df, aes(x = Actual, y = Predicted, fill = Count)) +
   geom_tile() +
   geom_text(aes(label = Count), color = "white", size = 5) +
   scale_fill_gradient(low = "lightblue", high = "darkblue") +
-  labs(title = "Confusion Matrix Heatmap")
+  labs(
+    title = "Confusion Matrix Heatmap (Rocket League)",
+    subtitle = "Classic Logistic Regression"
+  )

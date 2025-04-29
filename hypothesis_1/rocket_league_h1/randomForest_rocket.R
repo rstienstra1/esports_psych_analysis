@@ -10,6 +10,8 @@ library(tidyverse)
 library(randomForest)
 library(caret)
 library(ggplot2)
+
+# Set seed for reproducibility
 set.seed(1999)
 options(scipen=999)
 
@@ -69,28 +71,38 @@ rf_model <- randomForest(
 )
 
 
-
+# Save the model for reproducibility
+saveRDS(rf_model, file = "rf_model.rds")
 
 
 # model evaluation --------------------------------------------------------
 
+# Predictions
 predictions <- predict(rf_model, newdata = test_data)
 
+# Confusion Matrix
 conf_matrix <- table(predictions, test_data$match_win)
 
-accuracy <- sum(diag(conf_matrix)) / sum(conf_matrix)
-print(paste("Accuracy:", accuracy))
+# Accuracy
+rf_accuracy <- sum(diag(conf_matrix)) / sum(conf_matrix)
+print(paste("Accuracy: ", rf_accuracy))
 
 
 # variable importance
 var_importance <- importance(rf_model)
 print(var_importance)
+# Interpretation: A higher value indicates a stronger impact on match outcome predictions
+
+# Confusion Matrix
+confusionMatrix(predictions, test_data$match_win)
 
 
 # data viz ---------------------------------------------------------------
 
 # variable importance plot
 varImpPlot(rf_model)
+
+test_data$match_win <- factor(test_data$match_win, levels = levels(predictions))
 
 # confusion matrix plot
 conf_matrix_df <- as.data.frame(as.table(conf_matrix))
@@ -100,9 +112,12 @@ ggplot(conf_matrix_df, aes(x = Actual, y = Predicted, fill = Count)) +
   geom_tile() +
   geom_text(aes(label = Count), color = "white", size = 6) +
   scale_fill_gradient(low = "lightblue", high = "darkblue") +
-  labs(title = "Confusion Matrix", x = "Actual", y = "Predicted")
+  labs(title = "Confusion Matrix Heatmap - RandomForest (RL)", x = "Actual", y = "Predicted")
 
-
+# Bar plot of prediction distribution
+ggplot(as.data.frame(predictions), aes(x = predictions)) +
+  geom_bar(fill = "steelblue") +
+  labs(title = "Predicted Match Outcomes", x = "Prediction", y = "Count")
 
 
 

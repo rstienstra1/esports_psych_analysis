@@ -1,0 +1,17 @@
+/* Make active tab background pop */
+.nav-tabs > li.active > a,
+.nav-tabs > li.active > a:focus,
+.nav-tabs > li.active > a:hover {
+  background-color: #3498db;
+  color: white;
+  border: 1px solid #3498db;
+}
+
+/* Slight padding between tabbed sections */
+.section.level1 {
+  margin-top: 1.5em;
+}
+
+body {
+  background-color: lightblue !important;
+}

@@ -1,0 +1,116 @@
+---
+title: "Esports Psychological Momentum Analysis"
+format: 
+  dashboard:
+    theme: cosmo
+    orientation: rows
+editor: visual
+execute:
+  echo: false
+  message: false
+  warning: false
+  error: false
+page-layout: full
+---
+
+::: dashboard-tabset
+# Comparative {.tabset}
+
+## Row 1 {height="50%"}
+
+### Column 1 {width="50%"}
+
+```{r}
+knitr::include_graphics("analysis/H1GameComparison.png")
+```
+
+### Column 2 {width="50%"}
+
+```{r}
+# Example: DT::datatable(readRDS("analysis/comparative_summary_table.rds"))
+```
+
+## Row 2 {height="50%"}
+
+### Column 1 {width="100%"}
+
+```{r}
+# Example: htmltools::includeHTML("analysis/comparative_interactive.html")
+```
+
+------------------------------------------------------------------------
+
+# Rainbow 6 {.tabset}
+
+## Row 1 {height="50%"}
+
+### Column 1 {width="50%"}
+
+```{r}
+knitr::include_graphics("analysis/H1BayesianR6.png")
+```
+
+### Column 2 {width="50%"}
+
+```{r}
+knitr::include_graphics("analysis/H1ClassicLogisticRegressionR6.png")
+```
+
+## Row 2 {height="50%"}
+
+### Column 1 {width="33%"}
+
+```{r}
+knitr::include_graphics("analysis/H1PredictedMatchOutcomesR6.png")
+```
+
+### Column 2 {width="33%"}
+
+```{r}
+knitr::include_graphics("analysis/H1RandomForestR6.png")
+```
+
+### Column 3 {width="34%"}
+
+```{r}
+knitr::include_graphics("analysis/H1StatsDistR6.png")
+```
+
+------------------------------------------------------------------------
+
+# Rocket League {.tabset}
+
+## Row 1 {height="50%"}
+
+### Column 1 {width="50%"}
+
+```{r}
+knitr::include_graphics("analysis/H1BayesianRL.png")
+```
+
+### Column 2 {width="50%"}
+
+```{r}
+knitr::include_graphics("analysis/H1ClassicLogisticRegressionRL.png")
+```
+
+## Row 2 {height="50%"}
+
+### Column 1 {width="33%"}
+
+```{r}
+knitr::include_graphics("analysis/H1PredictedMatchOutcomesRL.png")
+```
+
+### Column 2 {width="33%"}
+
+```{r}
+knitr::include_graphics("analysis/H1RandomForestRL.png")
+```
+
+### Column 3 {width="34%"}
+
+```{r}
+knitr::include_graphics("analysis/H1StatsDistRL.png")
+```
+:::

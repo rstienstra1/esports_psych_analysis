@@ -178,6 +178,7 @@ transition_counts <- transitions_df %>%
 
 ggplot(transition_counts, aes(x = from, y = to, fill = n)) +
   geom_tile(color = "white") +
+  scale_fill_viridis_c() +
   geom_text(aes(label = n), color = "black", size = 4) +
   scale_fill_gradient(low = "lightblue", high = "darkblue") +
   labs(

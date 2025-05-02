@@ -1,0 +1,336 @@
+---
+title: "Esports Psychological Momentum Analysis"
+format: 
+  dashboard:
+    theme: cosmo
+    orientation: rows
+editor: visual
+execute:
+  echo: false
+  message: false
+  warning: false
+  error: false
+page-layout: full
+---
+
+```{r}
+#| title: "Comparison Stats - Log regn"
+#| echo: false
+#| output: false
+library(tidyverse)
+library(caret)
+library(ggplot2)
+library(yardstick)
+library(broom)
+library(brms)
+library(tidybayes)
+library(randomForest)
+set.seed(1999)
+options(scipen=999)
+
+# Constructs the URL for the Google sheet that contains the Rocket League data
+sheet_id <- "1JWk84PgKI_DNqgl8ncdx8_KJpBi7l7ZuoHrCutoBnGc"
+gid <- "0"
+url <- paste0("https://docs.google.com/spreadsheets/d/", sheet_id, "/export?format=csv&gid=", gid)
+
+rocket_league <- read_csv(url) # construct data frame
+
+rocket_league <- rocket_league %>%
+  rename_all(tolower) # make all column names lowercase
+
+# wrangling ---------------------------------------------------------------
+
+# Make new columns indicating if team a won the match and if they scored the first goal
+rocket_data <- rocket_league %>%
+  mutate(match_win = ifelse(winner == team_a, 1, 0),
+         early_win_indicator = ifelse(first_goal_a > first_goal_b, 1, 0))
+
+# train + test split ------------------------------------------------------
+
+# Split rocket league data into training 80% and testing 20% sets based on match win (the target)
+train_index <- createDataPartition(rocket_data$match_win, p = 0.8, list = FALSE)
+train_data <- rocket_data[train_index, ]
+test_data <- rocket_data[-train_index, ]
+
+# model -------------------------------------------------------------------
+
+# Fit the logistic regression model
+classic_log_model <- glm(match_win ~ early_win_indicator, family = "binomial", data = train_data)
+
+# Calculate odds ratio for rocket league
+rocket_odds <- tidy(classic_log_model, exponentiate = TRUE, conf.int = TRUE)
+
+# data load + clean --------------------------------------------------------------
+
+# Constructs the URL for the Google sheet that contains the R6 data
+sheet_id <- "1JWk84PgKI_DNqgl8ncdx8_KJpBi7l7ZuoHrCutoBnGc"
+gid <- "716521061"
+url <- paste0("https://docs.google.com/spreadsheets/d/", sheet_id, "/export?format=csv&gid=", gid)
+
+r6 <- read_csv(url) # construct data frame
+
+r6 <- r6 %>%
+  rename_all(tolower) # make all column names lowercase
+
+# wrangling ---------------------------------------------------------------
+
+# Make new columns indicating if team a won the match and if they had more early round wins
+r6_data <- r6 %>%
+  mutate(match_win = ifelse(winner == team_a, 1, 0),
+         early_win_indicator = ifelse(early_rounds_won_a > early_rounds_won_b, 1, 0))
+
+# train and test split ----------------------------------------------------
+
+# Split R6 data into training 80% and testing 20% sets based on match win (the target)
+train_index <- createDataPartition(r6_data$match_win, p = 0.8, list = FALSE)
+train_data <- r6_data[train_index, ]
+test_data <- r6_data[-train_index, ]
+
+# model -------------------------------------------------------------------
+
+# Fit the logistic regression model
+classic_log_model <- glm(match_win ~ early_win_indicator, family = "binomial", data = train_data)
+r6_odds <- tidy(classic_log_model, exponentiate = TRUE, conf.int = TRUE)
+
+rocket_odds$Game <- "Rocket League"
+r6_odds$Game <- "Rainbow 6 Siege"
+
+# Filter to just the early win predictor (change the term if needed!)
+rocket_early <- subset(rocket_odds, term == "early_win_indicator")
+r6_early <- subset(r6_odds, term == "early_win_indicator")
+
+combined_odds <- rbind(rocket_early, r6_early)
+
+# confusion matrix heatmap
+#conf_df <- as.data.frame(conf_matrix)
+#colnames(conf_df) <- c("Predicted", "Actual", "Count")
+
+```
+
+```{r}
+#| title: "Stats - R6 Bayesian"
+#| echo: false
+#| output: false
+# Split R6 data into training 80% and testing 20% sets based on match win (the target)
+train_index <- createDataPartition(r6_data$match_win, p = 0.8, list = FALSE)
+train_data <- r6_data[train_index, ]
+test_data <- r6_data[-train_index, ]
+
+```
+
+::: dashboard-tabset
+# Comparative {.tabset}
+
+## Row 1 {height="50%"}
+
+### Column 1 {width="50%"}
+
+```{r}
+
+# visualization -----------------------------------------------------------
+
+# Bar plot the combined odds comparison
+ggplot(combined_odds, aes(x = Game, y = estimate)) +
+  geom_col(fill = "lightblue") +
+  geom_errorbar(aes(ymin = conf.low, ymax = conf.high), width = 0.2) +
+  scale_y_continuous(trans = "log10") +
+  labs(title = "Impact of Early Wins on Match Outcomes",
+       y = "Odds Ratio\n(log scale)",
+       x = "Game Title") +
+  theme_minimal(base_size = 14) +
+  theme(plot.title.position = "plot")
+```
+
+### Column 2 {width="50%"}
+
+```{r}
+# Example: DT::datatable(readRDS("analysis/comparative_summary_table.rds"))
+```
+
+## Row 2 {height="50%"}
+
+### Column 1 {width="100%"}
+
+```{r}
+# Example: htmltools::includeHTML("analysis/comparative_interactive.html")
+```
+
+------------------------------------------------------------------------
+
+# Rainbow 6 {.tabset}
+
+## Row 1 {height="50%"}
+
+### Column 1 {width="50%"}
+
+```{r}
+library(ggiraph)
+# Plot distribution of win rates based on early win indicator
+interactive_bar <- r6_data %>%
+  mutate(early_win_indicator = factor(early_win_indicator, labels = c("Lost Early", "Won Early")),
+         match_win = factor(match_win, labels = c("Loss", "Win"))) %>%
+  ggplot(aes(x = early_win_indicator, fill = match_win, tooltip = match_win)) +
+  geom_bar_interactive(position = "fill") +
+  scale_fill_manual(values = c("Loss" = "darkblue", "Win" = "lightblue")) +
+  labs(title = "Match Wins vs Early Round Outcome (R6)",
+       x = "Early Round Win?", y = "Proportion", fill = "Match Result") +
+  theme_minimal(base_size = 14) +
+  theme(legend.position = "none",
+        plot.title.position = "plot")
+
+girafe(ggobj = interactive_bar)
+```
+
+### Column 2 {width="50%"}
+
+```{r}
+# Visualization 2: Distribution of early round wins
+ggplot(r6_data, aes(x = early_rounds_won_a)) +
+  geom_histogram(binwidth = 1, fill = "steelblue", color = "white") +
+  scale_x_continuous(breaks = 0:3) +
+  labs(title = "Distribution of Early Round Wins by Team A",
+       subtitle = "Out of first 3 rounds",
+       x = "Number of Early Rounds Won by Team A",
+       y = "Number of Matches") +
+  theme_minimal(base_size = 14) +
+  theme(legend.position = "bottom",
+        plot.title.position = "plot")
+```
+
+## Row 2 {height="50%"}
+
+### Column 1 {width="66%"}
+
+```{r}
+r6_data <- r6 %>%
+  mutate(match_win = ifelse(winner == team_a, 1, 0),
+         early_win_indicator = ifelse(early_rounds_won_a > early_rounds_won_b, 1, 0),
+         map = as.factor(map),
+         match_win = as.factor(match_win))
+
+
+# train + test split ------------------------------------------------------
+
+# Split R6 data into training 80% and testing 20% sets based on match win (the target)
+train_index <- createDataPartition(r6_data$match_win, p = 0.8, list = FALSE)
+train_data <- r6_data[train_index, ]
+test_data <- r6_data[-train_index, ]
+
+# factor levels in test match training
+test_data$map <- factor(test_data$map, levels = levels(train_data$map))
+
+# model -------------------------------------------------------------------
+
+rf_model <- randomForest(match_win ~ early_win_indicator + map, 
+                         data = train_data, 
+                         importance = TRUE)
+
+# Convert to data frame and extract the column
+var_importance_df <- as.data.frame(importance(rf_model))
+var_importance_df$Variable <- rownames(var_importance_df)
+
+plot_df <- var_importance_df %>%
+  select(Variable, MeanDecreaseGini, MeanDecreaseAccuracy) %>%
+  pivot_longer(cols = c("MeanDecreaseGini", "MeanDecreaseAccuracy"),
+               names_to = "Metric", values_to = "Importance") %>%
+  mutate(
+    Variable = case_when(
+      Variable == "early_win_indicator" ~ "Team A had more\nearly round wins",
+      Variable == "map" ~ "Map played",
+      TRUE ~ Variable
+    ),
+    Metric = case_when(
+      Metric == "MeanDecreaseGini" ~ "Mean Decrease\nGini",
+      Metric == "MeanDecreaseAccuracy" ~ "Mean Decrease\nAccuracy",
+      TRUE ~ Metric
+    )
+  )
+
+ggplot(plot_df, aes(x = reorder(Variable, Importance), y = Importance, fill = Metric)) +
+  geom_col(position = position_dodge(width = 0.8), width = 0.7) +
+  geom_text(aes(label = round(Importance, 1)),
+            position = position_dodge(width = 0.8),
+            hjust = -0.2, size = 3.5) +
+  coord_flip() +
+  scale_fill_manual(values = c("firebrick", "steelblue")) +  # Colorblind-friendly
+  scale_y_continuous(expand = expansion(mult = c(0, 0.15))) +
+  labs(
+    title = "Variable Importance Metrics (Random Forest)",
+    subtitle = "Comparison of Mean Decrease Gini and Mean Decrease Accuracy",
+    x = NULL,
+    y = "Importance",
+    fill = "Metric"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    plot.title = element_text(face = "bold"),
+    axis.text = element_text(color = "black"),
+    legend.position = "bottom"
+  )
+```
+
+### Column 2 {width="33%"}
+
+```{r}
+# model evaluation --------------------------------------------------------
+
+# Predictions
+predictions <- predict(rf_model, newdata = test_data)
+
+# Confusion Matrix
+conf_matrix <- table(predictions, test_data$match_win)
+
+# confusion matrix plot
+conf_matrix_df <- as.data.frame(as.table(conf_matrix))
+colnames(conf_matrix_df) <- c("Predicted", "Actual", "Count")
+
+ggplot(conf_matrix_df, aes(x = Actual, y = Predicted, fill = Count)) +
+  geom_tile() +
+  geom_text(aes(label = Count), color = "white", size = 6) +
+  scale_fill_gradient(low = "lightblue", high = "darkblue") +
+  labs(title = "Confusion Matrix Heatmap - RandomForest (R6)", x = "Actual", y = "Predicted") +
+  theme_minimal(base_size = 14) +
+  theme(
+    plot.title = element_text(face = "bold"),
+    axis.text = element_text(color = "black"),
+    legend.position = "bottom"
+  )
+
+```
+
+# Rocket League {.tabset}
+
+## Row 1 {height="50%"}
+
+### Column 1 {width="50%"}
+
+```{r}
+knitr::include_graphics("analysis/H1BayesianRL.png")
+```
+
+### Column 2 {width="50%"}
+
+```{r}
+knitr::include_graphics("analysis/H1ClassicLogisticRegressionRL.png")
+```
+
+## Row 2 {height="50%"}
+
+### Column 1 {width="33%"}
+
+```{r}
+knitr::include_graphics("analysis/H1PredictedMatchOutcomesRL.png")
+```
+
+### Column 2 {width="33%"}
+
+```{r}
+knitr::include_graphics("analysis/H1RandomForestRL.png")
+```
+
+### Column 3 {width="34%"}
+
+```{r}
+knitr::include_graphics("analysis/H1StatsDistRL.png")
+```
+:::

@@ -1,9 +1,12 @@
 ---
 title: "Esports Psychological Momentum Analysis"
-format: 
+format:
   dashboard:
     theme: cosmo
+    css: styles.css
     orientation: rows
+    sidebar-width: 300px  
+    content-width: 1600px
 editor: visual
 execute:
   echo: false
@@ -28,85 +31,120 @@ library(randomForest)
 set.seed(1999)
 options(scipen=999)
 
-# Constructs the URL for the Google sheet that contains the Rocket League data
+# Load Rocket League data
 sheet_id <- "1JWk84PgKI_DNqgl8ncdx8_KJpBi7l7ZuoHrCutoBnGc"
 gid <- "0"
 url <- paste0("https://docs.google.com/spreadsheets/d/", sheet_id, "/export?format=csv&gid=", gid)
+rocket_league <- read_csv(url) %>% rename_all(tolower)
 
-rocket_league <- read_csv(url) # construct data frame
-
-rocket_league <- rocket_league %>%
-  rename_all(tolower) # make all column names lowercase
-
-# wrangling ---------------------------------------------------------------
-
-# Make new columns indicating if team a won the match and if they scored the first goal
+# Wrangle Rocket League data
 rocket_data <- rocket_league %>%
   mutate(match_win = ifelse(winner == team_a, 1, 0),
-         early_win_indicator = ifelse(first_goal_a > first_goal_b, 1, 0))
+         early_win_indicator = ifelse(first_goal_a > first_goal_b, 1, 0),
+         team_a_win = ifelse(winner == team_a, 1, 0),
+         team_a_scored_first = ifelse(first_goal_a == 1, 1, 0),
+         goal_diff = score_a - score_b,
+         first_goal_scorer = case_when(
+           first_goal_a == 1 ~ "Team A",
+           first_goal_b == 1 ~ "Team B",
+           TRUE ~ "Neither"
+         )) %>%
+  filter(!is.na(first_goal_scorer))
 
-
-# train + test split ------------------------------------------------------
-
-# Split rocket league data into training 80% and testing 20% sets based on match win (the target)
+# Train/test split Rocket League
 train_index <- createDataPartition(rocket_data$match_win, p = 0.8, list = FALSE)
 train_data <- rocket_data[train_index, ]
 test_data <- rocket_data[-train_index, ]
 
-# model -------------------------------------------------------------------
-
-# Fit the logistic regression model
+# Logistic regression Rocket League
 classic_log_model <- glm(match_win ~ early_win_indicator, family = "binomial", data = train_data)
-
-# Calculate odds ratio for rocket league
 rocket_odds <- tidy(classic_log_model, exponentiate = TRUE, conf.int = TRUE)
 
-# data load + clean --------------------------------------------------------------
-
-# Constructs the URL for the Google sheet that contains the R6 data
-sheet_id <- "1JWk84PgKI_DNqgl8ncdx8_KJpBi7l7ZuoHrCutoBnGc"
+# Load Rainbow 6 data
 gid <- "716521061"
 url <- paste0("https://docs.google.com/spreadsheets/d/", sheet_id, "/export?format=csv&gid=", gid)
+rainbow_df <- read_csv(url) %>% rename_all(tolower)
 
-r6 <- read_csv(url) # construct data frame
-
-r6 <- r6 %>%
-  rename_all(tolower) # make all column names lowercase
-
-# wrangling ---------------------------------------------------------------
-
-# Make new columns indicating if team a won the match and if they had more early round wins
-r6_data <- r6 %>%
+# Wrangle R6 data for binary classification
+r6_data <- rainbow_df %>%
   mutate(match_win = ifelse(winner == team_a, 1, 0),
          early_win_indicator = ifelse(early_rounds_won_a > early_rounds_won_b, 1, 0))
-
-# train and test split ----------------------------------------------------
-
-# Split R6 data into training 80% and testing 20% sets based on match win (the target)
 train_index <- createDataPartition(r6_data$match_win, p = 0.8, list = FALSE)
 train_data <- r6_data[train_index, ]
 test_data <- r6_data[-train_index, ]
-
-# model -------------------------------------------------------------------
-
-# Fit the logistic regression model
 classic_log_model <- glm(match_win ~ early_win_indicator, family = "binomial", data = train_data)
 r6_odds <- tidy(classic_log_model, exponentiate = TRUE, conf.int = TRUE)
 
+# Combine odds
 rocket_odds$Game <- "Rocket League"
 r6_odds$Game <- "Rainbow 6 Siege"
+combined_odds <- bind_rows(
+  subset(rocket_odds, term == "early_win_indicator"),
+  subset(r6_odds, term == "early_win_indicator")
+)
 
-# Filter to just the early win predictor (change the term if needed!)
-rocket_early <- subset(rocket_odds, term == "early_win_indicator")
-r6_early <- subset(r6_odds, term == "early_win_indicator")
+# Confusion matrix Rocket League
+predictions <- predict(classic_log_model, newdata = test_data, type = "response")
+predicted_class <- ifelse(predictions >= 0.5, 1, 0)
+conf_matrix <- table(predicted_class, test_data$match_win)
+conf_matrix_df <- as.data.frame(conf_matrix)
+colnames(conf_matrix_df) <- c("Predicted", "Actual", "Count")
 
-combined_odds <- rbind(rocket_early, r6_early)
+# R6 Seed Modeling Block
+rainbow_long <- rainbow_df %>%
+  mutate(team1 = team_a, team2 = team_b) %>%
+  pivot_longer(cols = c(team1, team2), names_to = "team_position", values_to = "team") %>%
+  mutate(
+    opponent = ifelse(team_position == "team1", team_b, team_a),
+    early_wins = ifelse(team_position == "team1", early_rounds_won_a, early_rounds_won_b),
+    opp_early_wins = ifelse(team_position == "team1", early_rounds_won_b, early_rounds_won_a),
+    early_loss = ifelse(early_wins < opp_early_wins, 1, 0),
+    match_win = ifelse(winner == team, 1, 0)
+  ) %>%
+  select(match_id, team, opponent, early_loss, match_win) %>%
+  group_by(team) %>%
+  arrange(match_id) %>%
+  mutate(seed_proxy = lag(cumsum(match_win), default = 0)) %>%
+  ungroup()
 
-# confusion matrix heatmap
-#conf_df <- as.data.frame(conf_matrix)
-#colnames(conf_df) <- c("Predicted", "Actual", "Count")
+rainbow_model <- glm(match_win ~ early_loss * seed_proxy, data = rainbow_long, family = binomial())
 
+seed_range_r6 <- seq(min(rainbow_long$seed_proxy), max(rainbow_long$seed_proxy), by = 1)
+newdata_r6 <- expand.grid(early_loss = c(0, 1), seed_proxy = seed_range_r6)
+newdata_r6$predicted_prob <- predict(rainbow_model, newdata = newdata_r6, type = "response")
+newdata_r6$early_loss_label <- ifelse(newdata_r6$early_loss == 1, "Early Loss", "No Early Loss")
+
+# Rocket League Seed Modeling Block
+rocket_long <- rocket_data %>%
+  mutate(game_num = row_number()) %>%
+  rowwise() %>%
+  mutate(team1 = team_a, team2 = team_b) %>%
+  ungroup() %>%
+  pivot_longer(cols = c(team1, team2),
+               names_to = "team_position",
+               values_to = "team") %>%
+  mutate(opponent = ifelse(team_position == "team1", team_b, team_a),
+         score = ifelse(team_position == "team1", score_a, score_b),
+         opp_score = ifelse(team_position == "team1", score_b, score_a),
+         match_win = ifelse(winner == team, 1, 0),
+         early_loss = ifelse((first_goal_a == 0 & team_position == "team1") |
+                               (first_goal_b == 0 & team_position == "team2"), 1, 0)) %>%
+  select(match_id, team, opponent, score, opp_score, match_win, early_loss)
+
+rocket_long <- rocket_long %>%
+  group_by(team) %>%
+  arrange(match_id) %>%
+  mutate(seed_proxy = lag(cumsum(match_win), default = 0)) %>%
+  ungroup()
+
+rocket_model <- glm(match_win ~ early_loss * seed_proxy, data = rocket_long, family = binomial())
+
+seed_range <- seq(min(rocket_long$seed_proxy), max(rocket_long$seed_proxy), by = 1)
+newdata <- expand.grid(early_loss = c(0, 1), seed_proxy = seed_range)
+newdata$predicted_prob <- predict(rocket_model, newdata = newdata, type = "response")
+newdata$early_loss_label <- ifelse(newdata$early_loss == 1, "Early Loss", "No Early Loss")
 ```
+
 
 ```{r}
 #| title: "Stats - R6 Bayesian"
@@ -122,9 +160,9 @@ test_data <- r6_data[-train_index, ]
 ::: dashboard-tabset
 # Comparative {.tabset}
 
-## Row 1 {height="50%"}
+## Row 1 {height="25%"}
 
-### Column 1 {width="50%"}
+### Column 1 {width="100%"}
 
 ```{r}
 
@@ -150,25 +188,52 @@ interactive_plot <- ggplot(combined_odds, aes(x = Game, y = estimate)) +
        x = "Game Title") +
   theme_minimal(base_size = 14) +
   theme(plot.title.position = "plot")
-girafe(ggobj = interactive_plot, width_svg = 7, height_svg = 5)
+girafe(ggobj = interactive_plot, width_svg = 10, height_svg = 6)
 
 ```
 
-### Column 2 {width="50%"}
+## Row 2
+
+### Column 2 {width="100%"}
 
 ```{r}
-# Example: DT::datatable(readRDS("analysis/comparative_summary_table.rds"))
+ggplot(newdata_r6, aes(x = seed_proxy, y = predicted_prob, color = early_loss_label)) +
+  geom_line(size = 1.2) +
+  labs(
+    title = "Win Probability by Seed Strength & Early Loss",
+    subtitle = "Rainbow 6 Siege",
+    x = "Seed Proxy (Cumulative Wins Before Match)",
+    y = "Predicted Probability\n(Winning)",
+    color = "Early Loss"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    legend.position = "bottom",
+    plot.title.position = "plot"
+)
+  
 ```
 
-## Row 2 {height="50%"}
+## Row 3
 
 ### Column 1 {width="100%"}
 
 ```{r}
-# Example: htmltools::includeHTML("analysis/comparative_interactive.html")
+ggplot(newdata, aes(x = seed_proxy, y = predicted_prob, color = early_loss_label)) +
+  geom_line(size = 1.2) +
+  labs(
+    title = "Win Probability by Seed Strength & Early Loss",
+    subtitle = "Rocket League",
+    x = "Seed Proxy (Cumulative Wins Before Match)",
+    y = "Predicted Probability\n(Winning)",
+    color = "Early Loss"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    legend.position = "bottom",
+    plot.title.position = "plot"
+  )
 ```
-
-------------------------------------------------------------------------
 
 # Rainbow 6 {.tabset}
 
@@ -184,7 +249,7 @@ interactive_bar <- r6_data %>%
          match_win = factor(match_win, labels = c("Loss", "Win"))) %>%
   ggplot(aes(x = early_win_indicator, fill = match_win, tooltip = match_win)) +
   geom_bar_interactive(position = "fill") +
-  scale_fill_manual(values = c("Loss" = "darkblue", "Win" = "lightblue")) +
+  scale_fill_manual(values = c("Loss" = "lightblue", "Win" = "darkblue")) +
   labs(title = "Match Wins vs Early Round Outcome (R6)",
        x = "Early Round Win?", y = "Proportion", fill = "Match Result") +
   theme_minimal(base_size = 14) +
@@ -215,7 +280,7 @@ ggplot(r6_data, aes(x = early_rounds_won_a)) +
 ### Column 1 {width="66%"}
 
 ```{r}
-r6_data <- r6 %>%
+r6_data <- rainbow_df %>%
   mutate(match_win = ifelse(winner == team_a, 1, 0),
          early_win_indicator = ifelse(early_rounds_won_a > early_rounds_won_b, 1, 0),
          map = as.factor(map),
@@ -280,7 +345,7 @@ importance_plot <- ggplot(plot_df, aes(x = reorder(Variable, Importance), y = Im
     y = "Importance",
     fill = "Metric"
   ) +
-  theme_minimal(base_size = 12) +
+  theme_minimal(base_size = 14) +
   theme(
     plot.title = element_text(face = "bold"),
     axis.text = element_text(color = "black"),
@@ -293,18 +358,10 @@ girafe(ggobj = importance_plot, width_svg = 8, height_svg = 5)
 ### Column 2 {width="33%"}
 
 ```{r}
-# model evaluation --------------------------------------------------------
 
-# Predictions
-predictions <- predict(rf_model, newdata = test_data)
-
-# Confusion Matrix
-conf_matrix <- table(predictions, test_data$match_win)
-
-# confusion matrix plot
-conf_matrix_df <- as.data.frame(as.table(conf_matrix))
-colnames(conf_matrix_df) <- c("Predicted", "Actual", "Count")
-
+```
+### Column 3 {width="33%"}
+```{r}
 
 library(ggiraph)
 conf_matrix_df <- conf_matrix_df %>%
@@ -319,11 +376,10 @@ heatmap_plot <- ggplot(conf_matrix_df, aes(x = Actual, y = Predicted, fill = Cou
   theme_minimal(base_size = 14) +
   theme(
     plot.title = element_text(face = "bold"),
-    axis.text = element_text(color = "black"),
+    axis.text = element_text(color = "white"),
     legend.position = "bottom"
   )
-girafe(ggobj = heatmap_plot, width_svg = 7, height_svg = 5)
-
+girafe(ggobj = heatmap_plot, width_svg = 10, height_svg = 7)
 
 ```
 
@@ -335,24 +391,28 @@ girafe(ggobj = heatmap_plot, width_svg = 7, height_svg = 5)
 
 ```{r}
 library(ggiraph)
+# Prepare data
+rocket_data <- rocket_data %>%
+  mutate(first_goal_scorer = factor(first_goal_scorer, levels = c("Team A", "Team B", "Neither")),
+         match_result = factor(team_a_win, labels = c("Team B Won Match", "Team A Won Match")),
+         tooltip = paste("First Goal:", first_goal_scorer, "\nResult:", match_result))
 
-# Generate confusion matrix df
-conf_df <- as.data.frame(conf_matrix)
-colnames(conf_df) <- c("Predicted", "Actual", "Count")
-conf_df <- conf_df %>%
-  mutate(tooltip = paste0("Predicted: ", Predicted, "\nActual: ", Actual, "\nCount: ", Count))
+# Create interactive bar plot
+interactive_bar <- ggplot(rocket_data, aes(x = first_goal_scorer, fill = match_result)) +
+  geom_bar_interactive(aes(tooltip = tooltip, data_id = interaction(first_goal_scorer, match_result)),
+                       position = "fill") +
+  scale_fill_manual(values = c("Team B Won Match" = "darkblue", "Team A Won Match" = "lightblue")) +
+  labs(title = "Match Win Proportion by Early Round Outcome",
+       subtitle = "Early rounds = first 3 rounds of the match",
+       x = "Early Round Outcome",
+       y = "Proportion of Matches",
+       fill = "Match Outcome") +
+  theme_minimal(base_size = 14) +
+  theme(legend.position = "top")
 
-conf_plot <- ggplot(conf_df, aes(x = Actual, y = Predicted, fill = Count)) +
-  geom_tile_interactive(aes(tooltip = tooltip, data_id = interaction(Predicted, Actual))) +
-  geom_text(aes(label = Count), color = "white", size = 5) +
-  scale_fill_gradient(low = "lightblue", high = "darkblue") +
-  labs(
-    title = "Confusion Matrix Heatmap (Rocket League)",
-    subtitle = "Classic Logistic Regression"
-  ) +
-  theme_minimal()
+# Render the interactive chart
+girafe(ggobj = interactive_bar)
 
-girafe(ggobj = conf_plot)
 ```
 
 ### Column 2 {width="50%"}
@@ -377,7 +437,7 @@ rf_plot <- ggplot(plot_df, aes(x = reorder(Variable, Importance), y = Importance
     title = "Variable Importance - Random Forest (Rocket League)",
     x = NULL, y = "Importance", fill = "Metric"
   ) +
-  theme_minimal()
+  theme_minimal(base_size = 14)
 
 girafe(ggobj = rf_plot)
 ```
@@ -395,12 +455,12 @@ rocket_summary <- rocket_data %>%
 rocket_bar <- ggplot(rocket_summary, aes(x = early_result, y = n, fill = result)) +
   geom_col_interactive(aes(tooltip = tooltip, data_id = interaction(early_result, result)), position = "dodge") +
   labs(title = "Match Wins by Early Outcome (RL)", x = "Early Outcome", y = "Count") +
-  theme_minimal()
+  theme_minimal(base_size = 14) 
 
 girafe(ggobj = rocket_bar)
 ```
 
-### Column 2 {width="33%"}
+### Column 1 width="33%"}
 
 ```{r}
 predictions <- predict(classic_log_model, newdata = test_data, type = "response")
@@ -414,10 +474,31 @@ conf_plot <- ggplot(conf_df, aes(x = Actual, y = Predicted, fill = n)) +
   geom_text(aes(label = n), color = "white", size = 5) +
   labs(title = "Predicted vs Actual Outcomes - Classic Logistic (RL)",
        x = "Actual Outcome", y = "Predicted Outcome") +
-  theme_minimal()
+  theme_minimal(base_size = 14)
 
 girafe(ggobj = conf_plot)
 ```
 
-### Column 3 {width="34%"}
+## Row 1 {height="50%"}
+### Column 1 {width="34%"}
+
+```{r}
+# Generate confusion matrix df
+conf_df <- as.data.frame(conf_matrix)
+colnames(conf_df) <- c("Predicted", "Actual", "Count")
+conf_df <- conf_df %>%
+  mutate(tooltip = paste0("Predicted: ", Predicted, "\nActual: ", Actual, "\nCount: ", Count))
+
+conf_plot <- ggplot(conf_df, aes(x = Actual, y = Predicted, fill = Count)) +
+  geom_tile_interactive(aes(tooltip = tooltip, data_id = interaction(Predicted, Actual))) +
+  geom_text(aes(label = Count), color = "white", size = 5) +
+  scale_fill_gradient(low = "lightblue", high = "darkblue") +
+  labs(
+    title = "Confusion Matrix Heatmap (Rocket League)",
+    subtitle = "Classic Logistic Regression"
+  ) +
+  theme_minimal(base_size = 14)
+
+girafe(ggobj = conf_plot)
+```
 :::

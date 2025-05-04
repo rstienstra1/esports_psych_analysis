@@ -145,7 +145,6 @@ newdata$predicted_prob <- predict(rocket_model, newdata = newdata, type = "respo
 newdata$early_loss_label <- ifelse(newdata$early_loss == 1, "Early Loss", "No Early Loss")
 ```
 
-
 ```{r}
 #| title: "Stats - R6 Bayesian"
 #| echo: false
@@ -197,8 +196,11 @@ girafe(ggobj = interactive_plot, width_svg = 10, height_svg = 6)
 ### Column 2 {width="100%"}
 
 ```{r}
-ggplot(newdata_r6, aes(x = seed_proxy, y = predicted_prob, color = early_loss_label)) +
-  geom_line(size = 1.2) +
+newdata_r6 <- newdata_r6 %>%
+  mutate(tooltip = paste0("Seed: ", seed_proxy, "\n", early_loss_label, "\nProb: ", round(predicted_prob, 2)))
+
+interactive_line_r6 <- ggplot(newdata_r6, aes(x = seed_proxy, y = predicted_prob, color = early_loss_label)) +
+  geom_line_interactive(aes(group = early_loss_label, tooltip = tooltip, data_id = interaction(seed_proxy, early_loss_label)), size = 1.2) +
   labs(
     title = "Win Probability by Seed Strength & Early Loss",
     subtitle = "Rainbow 6 Siege",
@@ -207,10 +209,9 @@ ggplot(newdata_r6, aes(x = seed_proxy, y = predicted_prob, color = early_loss_la
     color = "Early Loss"
   ) +
   theme_minimal(base_size = 14) +
-  theme(
-    legend.position = "bottom",
-    plot.title.position = "plot"
-)
+  theme(legend.position = "bottom", plot.title.position = "plot")
+
+girafe(ggobj = interactive_line_r6)
   
 ```
 
@@ -219,8 +220,11 @@ ggplot(newdata_r6, aes(x = seed_proxy, y = predicted_prob, color = early_loss_la
 ### Column 1 {width="100%"}
 
 ```{r}
-ggplot(newdata, aes(x = seed_proxy, y = predicted_prob, color = early_loss_label)) +
-  geom_line(size = 1.2) +
+newdata <- newdata %>%
+  mutate(tooltip = paste0("Seed: ", seed_proxy, "\n", early_loss_label, "\nProb: ", round(predicted_prob, 2)))
+
+interactive_line_rl <- ggplot(newdata, aes(x = seed_proxy, y = predicted_prob, color = early_loss_label)) +
+  geom_line_interactive(aes(group = early_loss_label, tooltip = tooltip, data_id = interaction(seed_proxy, early_loss_label)), size = 1.2) +
   labs(
     title = "Win Probability by Seed Strength & Early Loss",
     subtitle = "Rocket League",
@@ -229,10 +233,9 @@ ggplot(newdata, aes(x = seed_proxy, y = predicted_prob, color = early_loss_label
     color = "Early Loss"
   ) +
   theme_minimal(base_size = 14) +
-  theme(
-    legend.position = "bottom",
-    plot.title.position = "plot"
-  )
+  theme(legend.position = "bottom", plot.title.position = "plot")
+
+girafe(ggobj = interactive_line_rl)
 ```
 
 # Rainbow 6 {.tabset}
@@ -263,16 +266,21 @@ girafe(ggobj = interactive_bar)
 
 ```{r}
 # Visualization 2: Distribution of early round wins
-ggplot(r6_data, aes(x = early_rounds_won_a)) +
-  geom_histogram(binwidth = 1, fill = "steelblue", color = "white") +
+r6_data <- r6_data %>%
+  mutate(tooltip = paste0("Early Wins: ", early_rounds_won_a))
+
+interactive_hist <- ggplot(r6_data, aes(x = early_rounds_won_a)) +
+  geom_histogram_interactive(aes(tooltip = tooltip, data_id = early_rounds_won_a),
+                              binwidth = 1, fill = "steelblue", color = "white") +
   scale_x_continuous(breaks = 0:3) +
   labs(title = "Distribution of Early Round Wins by Team A",
        subtitle = "Out of first 3 rounds",
        x = "Number of Early Rounds Won by Team A",
        y = "Number of Matches") +
-  theme_minimal(base_size = 14) +
-  theme(legend.position = "bottom",
-        plot.title.position = "plot")
+  theme_minimal(base_size = 14)
+
+girafe(ggobj = interactive_hist)
+
 ```
 
 ## Row 2 {height="50%"}
@@ -360,7 +368,9 @@ girafe(ggobj = importance_plot, width_svg = 8, height_svg = 5)
 ```{r}
 
 ```
+
 ### Column 3 {width="33%"}
+
 ```{r}
 
 library(ggiraph)
@@ -480,6 +490,7 @@ girafe(ggobj = conf_plot)
 ```
 
 ## Row 1 {height="50%"}
+
 ### Column 1 {width="34%"}
 
 ```{r}
